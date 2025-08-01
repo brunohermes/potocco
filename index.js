@@ -1,64 +1,53 @@
-const puppeteer = require('puppeteer');
-
-module.exports = async (codigoRastreio) => {
-    let browser;
-    try {
-        // Configuração otimizada para o Render
-        const launchOptions = {
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--single-process'
-            ],
-            headless: 'new',
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || 
-                          (process.platform === 'win32' 
-                           ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' 
-                           : '/usr/bin/google-chrome-stable')
-        };
-
-        browser = await puppeteer.launch(launchOptions);
-        // Restante do código permanece igual...
-
-require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
-const scraper = require('./scraper');
-
+const axios = require('axios');
+const cheerio = require('cheerio');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middlewares
-app.use(cors());
-app.use(express.json());
-
-// Rota de saúde
 app.get('/', (req, res) => {
-    res.json({ status: 'API de rastreamento funcionando' });
+  res.send('✅ API de Rastreio dos Correios. Use /rastrear?codigo=SEUCODIGO');
 });
 
-// Rota principal de rastreamento
-app.get('/rastrear/:codigo', async (req, res) => {
-    try {
-        const { codigo } = req.params;
-        
-        if (!codigo || codigo.length < 10) {
-            return res.status(400).json({ error: 'Código de rastreamento inválido' });
-        }
+app.get('/rastrear', async (req, res) => {
+  const codigo = req.query.codigo;
+  if (!codigo) {
+    return res.status(400).json({ erro: 'Código de rastreio não informado.' });
+  }
 
-        const dados = await scraper(codigo);
-        res.json(dados);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ 
-            error: 'Erro ao rastrear encomenda',
-            message: error.message 
-        });
+  try {
+    const url = `https://www.siterastreio.com.br/${codigo}`;
+    const { data } = await axios.get(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+
+    const $ = cheerio.load(data);
+    const eventos = [];
+
+    $('ol[data-testid="tracking-timeline-steps"] > li').each((i, el) => {
+      const data = $(el).find('time').text().trim();
+      const titulo = $(el).find('strong').text().trim();
+      const descricao = $(el).find('p').text().trim();
+
+      eventos.push({ data, titulo, descricao });
+    });
+
+    if (eventos.length === 0) {
+      return res.status(404).json({ erro: 'Dados não encontrados.' });
     }
+
+    res.json({
+      codigo,
+      status: eventos[0]?.titulo || 'Desconhecido',
+      atualizadoEm: eventos[0]?.data || null,
+      eventos
+    });
+
+  } catch (e) {
+    console.error(e.message);
+    res.status(500).json({ erro: 'Erro ao acessar a página de rastreio.' });
+  }
 });
 
-// Inicia o servidor
 app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
