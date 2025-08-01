@@ -1,6 +1,9 @@
 import express from "express";
 import cors from "cors";
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+
+puppeteer.use(StealthPlugin());
 
 const app = express();
 app.use(cors());
@@ -19,12 +22,19 @@ app.get("/rastrear", async (req, res) => {
     });
 
     const page = await browser.newPage();
+
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+    );
+
     await page.goto(`https://www.siterastreio.com.br/${codigo}`, {
       waitUntil: "networkidle2",
       timeout: 60000,
     });
 
-    await page.waitForSelector('[data-testid="tracking-timeline-steps"]');
+    await page.waitForSelector('[data-testid="tracking-timeline-steps"]', {
+      timeout: 10000,
+    });
 
     const eventos = await page.$$eval('[data-testid="tracking-timeline-steps"] li', (items) => {
       return items.map((el) => {
@@ -44,7 +54,7 @@ app.get("/rastrear", async (req, res) => {
       eventos,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Erro:", err.message);
     res.status(500).json({ erro: "Erro ao extrair informações." });
   }
 });
