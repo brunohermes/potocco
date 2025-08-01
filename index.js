@@ -1,3 +1,26 @@
+const puppeteer = require('puppeteer');
+
+module.exports = async (codigoRastreio) => {
+    let browser;
+    try {
+        // Configuração otimizada para o Render
+        const launchOptions = {
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--single-process'
+            ],
+            headless: 'new',
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || 
+                          (process.platform === 'win32' 
+                           ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' 
+                           : '/usr/bin/google-chrome-stable')
+        };
+
+        browser = await puppeteer.launch(launchOptions);
+        // Restante do código permanece igual...
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
