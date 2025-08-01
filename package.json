@@ -1,13 +1,13 @@
 {
   "name": "rastreio-correios",
   "version": "1.0.0",
-  "description": "Scraper de rastreio de objetos dos Correios via siterastreio.com.br",
+  "description": "API de rastreio Correios via SiteRastreio",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "axios": "^1.6.7",
+    "axios": "^1.6.0",
     "cheerio": "^1.0.0-rc.12",
     "express": "^4.18.2"
   }
