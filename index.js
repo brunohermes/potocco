@@ -1,59 +1,53 @@
-const express = require('express');
-const axios = require('axios');
-const cheerio = require('cheerio');
-const cors = require('cors');
+const express = require("express");
+const puppeteer = require("puppeteer");
+const cors = require("cors");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.use(cors());
 
-app.get('/rastrear', async (req, res) => {
+app.get("/rastrear", async (req, res) => {
   const codigo = req.query.codigo;
 
   if (!codigo) {
-    return res.status(400).json({ erro: 'Código de rastreio não informado' });
+    return res.status(400).json({ erro: "Código de rastreio não informado." });
   }
 
-  const url = `https://www.siterastreio.com.br/${codigo}`;
-
   try {
-    const { data: html } = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0'
-      }
+    const browser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
-    const $ = cheerio.load(html);
-
-    const eventos = [];
-
-    // Seleciona os <li> da linha do tempo de eventos
-    $('ol.flex.flex-col.mt-10 > li').each((_, el) => {
-      const data = $(el).find('div.text-sm.text-gray-400').text().trim();
-      const titulo = $(el).find('strong').text().trim();
-      const descricao = $(el).find('p').text().trim();
-
-      if (data || titulo || descricao) {
-        eventos.push({ data, titulo, descricao });
-      }
+    const page = await browser.newPage();
+    await page.goto(`https://www.siterastreio.com.br/${codigo}`, {
+      waitUntil: "networkidle2",
+      timeout: 60000,
     });
 
-    const status = eventos.length > 0 ? eventos[0].titulo : 'Desconhecido';
-    const atualizadoEm = eventos.length > 0 ? eventos[0].data : null;
+    await page.waitForSelector('[data-testid="tracking-timeline-steps"]');
+
+    const eventos = await page.$$eval('[data-testid="tracking-timeline-steps"] li', (items) => {
+      return items.map((el) => {
+        const data = el.querySelector("div.text-sm")?.innerText.trim() || "";
+        const titulo = el.querySelector("strong")?.innerText.trim() || "";
+        const descricao = el.querySelector("p")?.innerText.trim() || "";
+        return { data, titulo, descricao };
+      });
+    });
+
+    await browser.close();
 
     res.json({
       codigo,
-      status,
-      atualizadoEm,
-      eventos
+      status: eventos[0]?.titulo || "Desconhecido",
+      atualizadoEm: eventos[0]?.data || null,
+      eventos,
     });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({ erro: 'Falha ao acessar o conteúdo' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao extrair informações." });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
