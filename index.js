@@ -1,53 +1,59 @@
 const express = require('express');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const cors = require('cors');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/', (req, res) => {
-  res.send('✅ API de Rastreio dos Correios. Use /rastrear?codigo=SEUCODIGO');
-});
+app.use(cors());
 
 app.get('/rastrear', async (req, res) => {
   const codigo = req.query.codigo;
+
   if (!codigo) {
-    return res.status(400).json({ erro: 'Código de rastreio não informado.' });
+    return res.status(400).json({ erro: 'Código de rastreio não informado' });
   }
 
+  const url = `https://www.siterastreio.com.br/${codigo}`;
+
   try {
-    const url = `https://www.siterastreio.com.br/${codigo}`;
-    const { data } = await axios.get(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
+    const { data: html } = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0'
+      }
     });
 
-    const $ = cheerio.load(data);
+    const $ = cheerio.load(html);
+
     const eventos = [];
 
-    $('ol[data-testid="tracking-timeline-steps"] > li').each((i, el) => {
-      const data = $(el).find('time').text().trim();
+    // Seleciona os <li> da linha do tempo de eventos
+    $('ol.flex.flex-col.mt-10 > li').each((_, el) => {
+      const data = $(el).find('div.text-sm.text-gray-400').text().trim();
       const titulo = $(el).find('strong').text().trim();
       const descricao = $(el).find('p').text().trim();
 
-      eventos.push({ data, titulo, descricao });
+      if (data || titulo || descricao) {
+        eventos.push({ data, titulo, descricao });
+      }
     });
 
-    if (eventos.length === 0) {
-      return res.status(404).json({ erro: 'Dados não encontrados.' });
-    }
+    const status = eventos.length > 0 ? eventos[0].titulo : 'Desconhecido';
+    const atualizadoEm = eventos.length > 0 ? eventos[0].data : null;
 
     res.json({
       codigo,
-      status: eventos[0]?.titulo || 'Desconhecido',
-      atualizadoEm: eventos[0]?.data || null,
+      status,
+      atualizadoEm,
       eventos
     });
-
-  } catch (e) {
-    console.error(e.message);
-    res.status(500).json({ erro: 'Erro ao acessar a página de rastreio.' });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({ erro: 'Falha ao acessar o conteúdo' });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
