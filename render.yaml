@@ -1,7 +1,10 @@
 services:
   - type: web
-    name: rastreio-puppeteer
+    name: rastreio
     env: node
+    plan: free
     buildCommand: npm install
-    startCommand: node index.js
-    plan: starter
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
